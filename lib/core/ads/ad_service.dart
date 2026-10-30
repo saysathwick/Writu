@@ -1,8 +1,14 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
-/// Mapped to Google AdMob formats. See the U-write AdMob plan canvas.
+import 'ad_banner.dart';
+import 'ad_ids.dart';
+import 'sponsored_card.dart';
+
+/// Mapped to Google AdMob formats.
 enum AdPlacement {
-  /// Native Advanced in the notes gallery.
+  /// Native / banner in the notes gallery.
   homeFeed,
 
   /// Adaptive anchored banner above the home thumb dock.
@@ -20,16 +26,27 @@ enum AdPlacement {
   /// Interstitial after a share sheet dismisses.
   afterShare,
 
-  /// App open ad on cold start / long resume. Wired at the app root later.
+  /// App open ad on cold start / long resume.
   appOpen,
 }
 
-/// Dedicated ad surface. Swap [MockAdService] for Google Mobile Ads
-/// without rewriting screens.
+bool get adsSdkSupported =>
+    !kIsWeb &&
+    (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS);
+
+/// Dedicated ad surface. Screens talk to [AdService], not AdMob directly.
 abstract class AdService {
   bool get adsEnabled;
 
-  Widget? feedCard({required int index});
+  Widget placementCard({bool compact = false});
+
+  /// Insert a labeled native card after the first note, then every four notes.
+  bool shouldInsertAfterNote(int noteIndex, int noteCount) {
+    if (!adsEnabled || noteCount == 0) return false;
+    if (noteIndex == 0) return true;
+    return (noteIndex + 1) % 4 == 0;
+  }
 
   Future<void> maybeShowInterstitial(
     AdPlacement placement, {
@@ -46,12 +63,12 @@ class MockAdService implements AdService {
   int _breaksSinceInterstitial = 0;
 
   @override
-  Widget? feedCard({required int index}) {
-    if (!adsEnabled) return null;
-    return null;
+  Widget placementCard({bool compact = false}) {
+    if (!adsEnabled) return const SizedBox.shrink();
+    return SponsoredCard(compact: compact);
   }
 
-  /// Insert a labeled native card after the first note, then every four notes.
+  @override
   bool shouldInsertAfterNote(int noteIndex, int noteCount) {
     if (!adsEnabled || noteCount == 0) return false;
     if (noteIndex == 0) return true;
@@ -82,19 +99,101 @@ class MockAdService implements AdService {
 }
 
 class GoogleMobileAdsService implements AdService {
-  GoogleMobileAdsService({required this.adsEnabled});
+  GoogleMobileAdsService({required this.adsEnabled}) {
+    if (adsEnabled) _loadInterstitial();
+  }
 
   @override
   final bool adsEnabled;
 
   @override
-  Widget? feedCard({required int index}) => null;
+  bool shouldInsertAfterNote(int noteIndex, int noteCount) {
+    if (!adsEnabled || noteCount == 0) return false;
+    if (noteIndex == 0) return true;
+    return (noteIndex + 1) % 4 == 0;
+  }
+
+  InterstitialAd? _interstitial;
+  bool _loadingInterstitial = false;
+  int _breaksSinceInterstitial = 0;
+
+  String get _interstitialId => defaultTargetPlatform == TargetPlatform.iOS
+      ? AdIds.iosInterstitial
+      : AdIds.androidInterstitial;
+
+  @override
+  Widget placementCard({bool compact = false}) {
+    if (!adsEnabled) return const SizedBox.shrink();
+    return AdBanner(compact: compact);
+  }
+
+  void _loadInterstitial() {
+    if (!adsEnabled || _loadingInterstitial || _interstitial != null) return;
+    _loadingInterstitial = true;
+    InterstitialAd.load(
+      adUnitId: _interstitialId,
+      request: const AdRequest(),
+      adLoadCallback: InterstitialAdLoadCallback(
+        onAdLoaded: (ad) {
+          _interstitial = ad;
+          _loadingInterstitial = false;
+        },
+        onAdFailedToLoad: (error) {
+          _interstitial = null;
+          _loadingInterstitial = false;
+          debugPrint('AdMob interstitial failed: $error');
+        },
+      ),
+    );
+  }
 
   @override
   Future<void> maybeShowInterstitial(
     AdPlacement placement, {
     BuildContext? context,
-  }) async {}
+  }) async {
+    if (!adsEnabled) return;
+    switch (placement) {
+      case AdPlacement.whileSaving:
+      case AdPlacement.homeFeed:
+      case AdPlacement.homeBanner:
+      case AdPlacement.appOpen:
+        return;
+      case AdPlacement.afterSave:
+      case AdPlacement.afterCreate:
+      case AdPlacement.afterShare:
+        _breaksSinceInterstitial += 1;
+        if (_breaksSinceInterstitial % 2 != 0) {
+          _loadInterstitial();
+          return;
+        }
+        final ad = _interstitial;
+        if (ad == null) {
+          _loadInterstitial();
+          return;
+        }
+        _interstitial = null;
+        ad.fullScreenContentCallback = FullScreenContentCallback(
+          onAdDismissedFullScreenContent: (shown) {
+            shown.dispose();
+            _loadInterstitial();
+          },
+          onAdFailedToShowFullScreenContent: (shown, error) {
+            shown.dispose();
+            _loadInterstitial();
+          },
+        );
+        await ad.show();
+    }
+  }
+}
+
+Future<void> initializeAds() async {
+  if (!adsSdkSupported) return;
+  await MobileAds.instance.initialize();
+  await MobileAds.instance.updateRequestConfiguration(
+    RequestConfiguration(testDeviceIds: const ['EMULATOR']),
+  );
 }
 
 Future<void> showMockInterstitial(BuildContext context) {
@@ -139,7 +238,7 @@ Future<void> showMockInterstitial(BuildContext context) {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'This is the AdMob interstitial slot that appears after a note is saved and the editor closes — never while saving.',
+                        'This is the AdMob interstitial slot that appears after a note is saved and the editor closes, never while saving.',
                         style: TextStyle(
                           fontSize: 14,
                           height: 1.4,

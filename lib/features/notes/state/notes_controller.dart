@@ -26,10 +26,14 @@ final entitlementsProvider = Provider<Entitlements>((ref) {
   return LocalEntitlements();
 });
 
-final adServiceProvider = Provider<MockAdService>((ref) {
-  final settings = ref.watch(settingsProvider);
+final adServiceProvider = Provider<AdService>((ref) {
+  final adsOn = ref.watch(settingsProvider.select((s) => s.adsEnabled));
   final premium = ref.watch(entitlementsProvider);
-  return MockAdService(adsEnabled: settings.adsEnabled && premium.adsEnabled);
+  final enabled = adsOn && premium.adsEnabled;
+  if (adsSdkSupported) {
+    return GoogleMobileAdsService(adsEnabled: enabled);
+  }
+  return MockAdService(adsEnabled: enabled);
 });
 
 final homeWidgetGatewayProvider = Provider<HomeWidgetGateway>((ref) {

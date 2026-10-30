@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../core/ads/sponsored_card.dart';
+import '../../core/ads/ad_service.dart';
 import '../../core/branding/uwrite_mark.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/motion.dart';
@@ -38,18 +38,19 @@ class HomeScreen extends ConsumerWidget {
               child: state.loading
                   ? const Center(child: _LoadingMark())
                   : state.visible.isEmpty
-                      ? _EmptyGallery(showAd: ads.adsEnabled)
+                      ? _EmptyGallery(showAd: ads.adsEnabled, ads: ads)
                       : _Gallery(
                           notes: state.visible,
                           viewMode: state.viewMode,
+                          ads: ads,
                           insertAfter: (i) =>
                               ads.shouldInsertAfterNote(i, state.visible.length),
                         ),
             ),
             if (ads.adsEnabled)
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: SizedBox(height: 72, child: SponsoredCard(compact: true)),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: SizedBox(height: 72, child: ads.placementCard(compact: true)),
               ),
             const _ThumbDock(),
           ],
@@ -131,11 +132,13 @@ class _Gallery extends ConsumerWidget {
   const _Gallery({
     required this.notes,
     required this.viewMode,
+    required this.ads,
     required this.insertAfter,
   });
 
   final List<Note> notes;
   final HomeViewMode viewMode;
+  final AdService ads;
   final bool Function(int noteIndex) insertAfter;
 
   @override
@@ -182,7 +185,7 @@ class _Gallery extends ConsumerWidget {
 
   Widget _tile(BuildContext context, WidgetRef ref, Object item, double height) {
     if (item is String) {
-      return SizedBox(height: height, child: const SponsoredCard());
+      return SizedBox(height: height, child: ads.placementCard());
     }
     final note = item as Note;
     return SizedBox(
@@ -211,7 +214,9 @@ class _Gallery extends ConsumerWidget {
 }
 
 class _EmptyGallery extends StatelessWidget {
-  const _EmptyGallery({required this.showAd});
+  const _EmptyGallery({required this.showAd, required this.ads});
+
+  final AdService ads;
 
   final bool showAd;
 
@@ -263,7 +268,7 @@ class _EmptyGallery extends StatelessWidget {
         ),
         if (showAd) ...[
           const SizedBox(height: 28),
-          const SizedBox(height: 160, child: SponsoredCard()),
+          SizedBox(height: 160, child: ads.placementCard()),
         ],
       ],
     );

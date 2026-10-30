@@ -27,4 +27,4 @@ iOS WidgetKit is not bundled yet: this machine does not have a complete Xcode in
 - Onboarding, settings, ad placeholders, premium entitlement hook
 - Android home-screen widget (pin request + tap-to-open the note)
 
-Ads are mock/sponsored cards in the gallery only. The editor stays quiet.
+Ads use Google AdMob **test** units (banner in the gallery, interstitial after save/share). The editor stays quiet while saving. Replace `lib/core/ads/ad_ids.dart` and the manifest app IDs before a production release.

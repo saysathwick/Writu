@@ -209,13 +209,13 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Premium will unlock extra fonts, themes, and a home without sponsored cards. Purchases are not available in this build.',
+                    'Premium will unlock extra fonts, themes, and a home without ads. Purchases are not available in this build.',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 12),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Show sponsored cards'),
+                    title: const Text('Show ads'),
                     value: settings.adsEnabled,
                     onChanged: (v) =>
                         ref.read(settingsProvider.notifier).patch(adsEnabled: v),
@@ -230,7 +230,7 @@ class SettingsScreen extends ConsumerWidget {
                 children: [
                   const UwriteMark(size: 20),
                   const SizedBox(height: 10),
-                  const Text('U-write 1.0.0'),
+                  const Text('U-write 1.0.1'),
                   const SizedBox(height: 8),
                   Text(
                     'Write it. Style it. Make it yours.',
